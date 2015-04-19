@@ -12,13 +12,13 @@ function collision_probability_stats(P0::MPProblem, eps::Float64, LQG::DiscreteL
                                      progressmod::Int = 1000,
                                      vis::Bool = {},
                                      VR::Bool = true,
-                                     alphafilter = 1e-4)
+                                     alphafilter = 1e-5)
     length(P0.V) < 2 && error("Near neighbor data needs to be prepopulated (e.g. from deterministic solution run)")
     CC0 = P0.CC
     CCI = inflate(P0.CC, eps)
     P0.CC = CCI
     tic()
-    fmtstar!(P, length(P0.V), connections = :R, r = P0.solution.metadata["r"])  # actually r doesn't matter - near neighbors sets are precomputed
+    fmtstar!(P0, length(P0.V), connections = :R, r = P0.solution.metadata["r"])  # actually r doesn't matter - near neighbors sets are precomputed
     println("Planning Time $(toq())")
     local path::LQGPath
     try
@@ -102,7 +102,7 @@ function collision_probability(P0::MPProblem, eps::Float64, LQG::DiscreteLQG, Np
                                method::Symbol = :VR,
                                cw::Int = -1,
                                defIS::Float64 = 0.,
-                               alphafilter::Float64 = 1e-4,
+                               alphafilter::Float64 = 1e-5,
                                targeted::Bool = false,
                                CPgoal::Float64 = .01,
                                zhalt = 4.0)
@@ -111,7 +111,7 @@ function collision_probability(P0::MPProblem, eps::Float64, LQG::DiscreteLQG, Np
     CCI = inflate(P0.CC, eps)
     P0.CC = CCI
     tic()
-    fmtstar!(P, length(P0.V), connections = :R, r = P0.solution.metadata["r"])  # actually r doesn't matter - near neighbors sets are precomputed
+    fmtstar!(P0, length(P0.V), connections = :R, r = P0.solution.metadata["r"])  # actually r doesn't matter - near neighbors sets are precomputed
     plan_time = toq()
     verbose && println("Planning Time $plan_time")
     local path::LQGPath
@@ -188,8 +188,9 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
     mid = 0.
     plan_time = 0.
     MC_time = 0.
+    alphafilter = min(1e-5, CPgoal / Nparticles)    # not at all the right quantity, but it's something
     try
-        CPlo = collision_probability(P0, lo, LQG, Nparticles, method = method, targeted = true, CPgoal = CPgoal)
+        CPlo = collision_probability(P0, lo, LQG, Nparticles, method = method, targeted = true, CPgoal = CPgoal, alphafilter = alphafilter)
         plan_time += CPlo["plan_time"]
         MC_time += CPlo["MC_time"]
     catch
@@ -197,7 +198,7 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
     end
     for i in 1:5
         try
-            CPhi = collision_probability(P0, hi, LQG, Nparticles, method = method, targeted = true, CPgoal = CPgoal)
+            CPhi = collision_probability(P0, hi, LQG, Nparticles, method = method, targeted = true, CPgoal = CPgoal, alphafilter = alphafilter)
             plan_time += CPhi["plan_time"]
             MC_time += CPhi["MC_time"]
             break
@@ -218,7 +219,7 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
         tic()
         iter += 1
         mid = (lo+hi)/2
-        CPmid = collision_probability(P0, mid, LQG, Nparticles, method = method, targeted = true, CPgoal = CPgoal)
+        CPmid = collision_probability(P0, mid, LQG, Nparticles, method = method, targeted = true, CPgoal = CPgoal, alphafilter = alphafilter)
         plan_time += CPmid["plan_time"]
         MC_time += CPmid["MC_time"]
         verbose && @printf("Iteration %d: eps interval (%4f, %4f) CP interval (%4f, %4f, %4f) elapsed time %3fs\n", 
