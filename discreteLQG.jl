@@ -64,12 +64,12 @@ function DiscreteLQG(A,B,C,Cws,Q,R,F,V,W,P0,Tmax,dt)
     DiscreteLQG(A,B,C,Cws,Q,R,F,V,W,P0,P,S,K,L,dim,Ncomb,Σinv,Acomb,0,dt)
 end
 
-function DiscreteLQG(SS::LinearQuadraticStateSpace, W, V, P0; dt = .025, nsf = 1.0, max_time = 8.)
+function DiscreteLQG(SS::LinearQuadraticStateSpace, Wc, Vc, P0; dt = .025, nsf = 1.0, max_time = 8.)
     function GhettoIntegrate(f, t0, t1, N)   # Trapezoid rule would be a better name
         tt = linspace(t0, t1, N)
-        dt = diff(tt)
+        ds = diff(tt)
         vv = map(f, tt)
-        .5*(sum(map(*, vv[1:end-1], dt)) + sum(map(*, vv[2:end], dt)))
+        .5*(sum(map(*, vv[1:end-1], ds)) + sum(map(*, vv[2:end], ds)))
     end
     A = expm(SS.A*dt)
     B = GhettoIntegrate(s -> expm(SS.A*s), 0, dt, 20)*SS.B
@@ -78,6 +78,9 @@ function DiscreteLQG(SS::LinearQuadraticStateSpace, W, V, P0; dt = .025, nsf = 1
     Q = 5*eye(SS.dim)           # state regulator
     R = 1*eye(size(SS.B,2))     # control effort
     F = Q                       # final state penalty
+    V = nsf*GhettoIntegrate(s -> expm(SS.A*s)*Vc*expm(SS.A*s)', 0, dt, 20)   # process noise
+    W = nsf/dt*Wc                                                            # measurement noise
+    P0 = nsf*P0                                                              # initial uncertainty
     DiscreteLQG(A,B,C,Cws,Q,R,F,V,W,P0,iceil(max_time/dt),dt)
 end
 
@@ -182,8 +185,11 @@ end
 
 function computecops(LP::LQGPath, CC::CollisionChecker, pthresh = 0.)
     LP.CC = CC
-    LP.cops = vcat([[COP(i, d2, v, cop_to_hpv(LP.path[i], v, LP.pwu[i]), halfplanetail(d2))
-                     for (d2,v) in nonoccluded_cops(LP.path[i], CC, full(inv(LP.pwu[i].Σ)), pthresh)]
+    LP.cops = vcat([[(W = sqrtm(full(LP.pwu[i].Σ));                     # likely the most ridiculous comprehension I've ever written
+                      p = LP.path[i];
+                      vf = p + W*pinv(LP.D.Cws*W)*(v-LP.D.Cws*p);       # d2f (hell yeah she is) is no different
+                      COP(i, d2, vf, cop_to_hpv(LP.path[i], vf, LP.pwu[i]), halfplanetail(d2)))
+                     for (d2,v) in nonoccluded_cops(LP.D.Cws*LP.path[i], CC, full(inv((LP.D.Cws*LP.pwu[i]).Σ)), pthresh)]
                     for i in 1:length(LP)]...)
     LP.pthresh = pthresh
 end
@@ -203,8 +209,10 @@ function pointwise_pruned_uncertainty_CP_estimate(LP::LQGPath, CC::CollisionChec
     combined_unc[1] = D.Ncomb[1]
     CCP_estimate = 1.
     for t in 1:T+1
-        cops = nonoccluded_cops(path[t]+combined_unc[t].μ[1:D.dim], CC, full(inv(combined_unc[t][1:D.dim].Σ)))
-        hpvs = Vector{Float64}[[cop_to_hpv(path[t], cop[2], combined_unc[t][1:D.dim]), zeros(D.dim)] for cop in cops]
+        copsws = nonoccluded_cops(D.Cws*(path[t]+combined_unc[t].μ[1:D.dim]), CC, full(inv((D.Cws*combined_unc[t][1:D.dim]).Σ)))
+        W = sqrtm(full(combined_unc[t][1:D.dim].Σ))
+        cops = [(path[t] + W*pinv(D.Cws*W)*(v-D.Cws*path[t])) for (d2,v) in copsws]
+        hpvs = Vector{Float64}[[cop_to_hpv(path[t], cop, combined_unc[t][1:D.dim]), zeros(D.dim)] for cop in cops]
         CCP_estimate *= 1 - sum([halfplanetail(combined_unc[t], hpv) for hpv in hpvs])
         t > T && break
         pruned_unc[t] = prunenormal(combined_unc[t], hpvs)
@@ -220,8 +228,8 @@ function half_plane_breach_probabilities(LP::LQGPath, CC::CollisionChecker, pthr
 end
 
 function ellipsoid_breach_probabilities(LP::LQGPath, CC::CollisionChecker)
-    ccop = [closest(LP.path[i], CC, full(inv(LP.pwu[i].Σ))) for i in 1:length(LP)]
-    [ellipsoidtail(length(LP.pwu[i]), ccop[i][1]) for i in 1:length(LP)]
+    ccop = [closest(LP.D.Cws*LP.path[i], CC, full(inv((LP.D.Cws*LP.pwu[i]).Σ))) for i in 1:length(LP)]
+    [ellipsoidtail(length(LP.D.Cws*LP.pwu[i]), ccop[i][1]) for i in 1:length(LP)]
 end
 
 function half_plane_breach_count(LP::LQGPath, observed::Path)   # TODO: also try ellipsoid_breaches

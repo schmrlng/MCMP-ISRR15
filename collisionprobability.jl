@@ -20,8 +20,12 @@ function collision_probability_stats(P0::MPProblem, eps::Float64, LQG::DiscreteL
     tic()
     fmtstar!(P, length(P0.V), connections = :R, r = P0.solution.metadata["r"])  # actually r doesn't matter - near neighbors sets are precomputed
     println("Planning Time $(toq())")
-    path = LQGPath(discretize_path(P0, LQG.dt), LQG)
-    P0.CC = CC0
+    local path::LQGPath
+    try
+        path = LQGPath(discretize_path(P0, LQG.dt), LQG)
+    finally
+        P0.CC = CC0
+    end
     cw == -1 && (cw = length(path.path))
     alpha = half_plane_breach_probabilities(path, CC0, alphafilter)
     theta = sum(alpha)
@@ -53,7 +57,7 @@ function collision_probability_stats(P0::MPProblem, eps::Float64, LQG::DiscreteL
     if vis
         plot(P0, sol=false, meta=false)
         plot_path([LQG.Cws*p for p in path.path], color="blue")
-        plot(CCI, P0.SS.lo, P0.SS.hi, alpha=.2)
+        eps > 0 && plot(CCI, P0.SS.lo, P0.SS.hi, alpha=.2)
         for t in 1:length(path.pwu)
             plot_ellipse(LQG.Cws*path.path[t], quantile(Chisq(2), .95)*cov(LQG.Cws*path.pwu[t]), color="purple", alpha=.2)
         end
