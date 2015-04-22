@@ -29,7 +29,6 @@ function collision_probability_stats(P0::MPProblem, eps::Float64, LQG::DiscreteL
     cw == -1 && (cw = length(path.path))
     local alpha::Vector{Float64}
     while true
-        println(alphafilter)
         alpha = half_plane_breach_probabilities(path, CC0, alphafilter)
         isempty(alpha) && (alphafilter /= 10; continue)
         /(extrema(alpha)...) * Nparticles < .1 && (alphafilter *= 10; continue)
@@ -145,7 +144,6 @@ function collision_probability(P0::MPProblem, eps::Float64, LQG::DiscreteLQG, Np
     elseif method == :VR
         local alpha::Vector{Float64}
         while true
-            println(alphafilter)
             alpha = half_plane_breach_probabilities(path, CC0, alphafilter)
             isempty(alpha) && (alphafilter /= 10; continue)
             /(extrema(alpha)...) * Nparticles < .1 && (alphafilter *= 10; continue)
