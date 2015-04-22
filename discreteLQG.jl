@@ -224,7 +224,7 @@ end
 ## Pointwise probabilities
 function half_plane_breach_probabilities(LP::LQGPath, CC::CollisionChecker, pthresh = 0.)
     (!isdefined(LP, :cops) || LP.pthresh != pthresh) && computecops(LP, CC, pthresh)
-    [cop.hpbp for cop in LP.cops]
+    Float64[cop.hpbp for cop in LP.cops]
 end
 
 function ellipsoid_breach_probabilities(LP::LQGPath, CC::CollisionChecker)

@@ -27,7 +27,14 @@ function collision_probability_stats(P0::MPProblem, eps::Float64, LQG::DiscreteL
         P0.CC = CC0
     end
     cw == -1 && (cw = length(path.path))
-    alpha = half_plane_breach_probabilities(path, CC0, alphafilter)
+    local alpha::Vector{Float64}
+    while true
+        println(alphafilter)
+        alpha = half_plane_breach_probabilities(path, CC0, alphafilter)
+        isempty(alpha) && (alphafilter /= 10; continue)
+        /(extrema(alpha)...) * Nparticles < .1 && (alphafilter *= 10; continue)
+        break
+    end
     theta = sum(alpha)
     alpha_normalized = [alpha, theta*defIS/(1-defIS)] / (theta + theta*defIS/(1-defIS))
 
@@ -136,7 +143,14 @@ function collision_probability(P0::MPProblem, eps::Float64, LQG::DiscreteLQG, Np
             targeted && i > 100 && abs(CP - CPgoal) > zhalt*CPstd && break
         end
     elseif method == :VR
-        alpha = half_plane_breach_probabilities(path, CC0, alphafilter)
+        local alpha::Vector{Float64}
+        while true
+            println(alphafilter)
+            alpha = half_plane_breach_probabilities(path, CC0, alphafilter)
+            isempty(alpha) && (alphafilter /= 10; continue)
+            /(extrema(alpha)...) * Nparticles < .1 && (alphafilter *= 10; continue)
+            break
+        end
         theta = sum(alpha)
         alpha_normalized = [alpha, theta*defIS/(1-defIS)] / (theta + theta*defIS/(1-defIS))
         cw == -1 && (cw = length(path.path))
