@@ -226,7 +226,6 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
 
     for iter in 1:itermax
         tic()
-        iter += 1
         mid = (lo+hi)/2
         CPmid = collision_probability(P0, mid, LQG, Nparticles, method = method, targeted = true, CPgoal = CPgoal, alphafilter = alphafilter)
         plan_time += CPmid["plan_time"]
@@ -253,7 +252,7 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
     alpha_ellipse = ellipsoid_breach_probabilities(CPmid["path"], P0.CC)
     {
         "ep" => mid,
-        "CPdict" => CPmid,
+        # "CPdict" => CPmid,
         "plan_time" => plan_time,
         "MC_time" => MC_time,
         "cond_mult" => pointwise_pruned_uncertainty_CP_estimate(CPmid["path"], P0.CC),
@@ -263,7 +262,9 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
         "multe" => (1-prod(1-alpha_ellipse)),
         "CP" => CPmid["CP"],
         "CPstd" => CPmid["CPstd"],
-        "cost" => CPmid["cost"]
+        "cost" => CPmid["cost"],
+        "disc_pts" => length(CPmid["path"]),
+        "iter" => iter
     }
 end
 
