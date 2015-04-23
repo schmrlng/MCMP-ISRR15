@@ -64,7 +64,7 @@ function DiscreteLQG(A,B,C,Cws,Q,R,F,V,W,P0,Tmax,dt)
     DiscreteLQG(A,B,C,Cws,Q,R,F,V,W,P0,P,S,K,L,dim,Ncomb,Σinv,Acomb,0,dt)
 end
 
-function DiscreteLQG(SS::LinearQuadraticStateSpace, Wc, Vc, P0; dt = .025, nsf = 1.0, max_time = 8.)
+function DiscreteLQG(SS::LinearQuadraticStateSpace, Wc, Vc, P0; dt = .025, nsf = 1.0, max_time = 20.)
     function GhettoIntegrate(f, t0, t1, N)   # Trapezoid rule would be a better name
         tt = linspace(t0, t1, N)
         ds = diff(tt)
@@ -84,7 +84,7 @@ function DiscreteLQG(SS::LinearQuadraticStateSpace, Wc, Vc, P0; dt = .025, nsf =
     DiscreteLQG(A,B,C,Cws,Q,R,F,V,W,P0,iceil(max_time/dt),dt)
 end
 
-function SingleIntegrator(dim = 2; dt = .025, nsf = 1.0, max_time = dim)
+function SingleIntegrator(dim = 2; dt = .025, nsf = 1.0, max_time = 2*dim)
     A = eye(dim)
     B = dt*eye(dim)    # assuming unit speed
     C = eye(dim)

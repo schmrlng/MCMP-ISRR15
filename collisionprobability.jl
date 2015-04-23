@@ -76,12 +76,6 @@ function collision_probability_stats(P0::MPProblem, eps::Float64, LQG::DiscreteL
         # for t in 1:1:length(pwpu)
         #     plot_ellipse(dpath[t], quantile(Chisq(2), .95)*cov(pwpu[t]), color="purple", alpha=.2)
         # end
-
-        # # cops = pathwise_nonoccluded_cops(dpath, LQG, P0.obs, pwu)
-        # # X1 = dpath[vcat([i*ones(Int, length(cops[i])) for i in 1:length(cops)]...)]
-        # # X2 = vcat(cops...)
-        # # plot_line_segments(X1, X2, linewidth=.5, linestyle="-", zorder=1, color="green", alpha=1.)
-        # println(100*sum(f) / Nparticles, "% particles invalid (naive MC)")
     end
 
     prunedCPestimate = pointwise_pruned_uncertainty_CP_estimate(path, CC0)
@@ -98,6 +92,7 @@ function collision_probability_stats(P0::MPProblem, eps::Float64, LQG::DiscreteL
         "IS_paths" => IS_paths,
         "prunedCPestimate" => prunedCPestimate,
         "alpha" => alpha,
+        "CP_VR" => mean(ISf) - (cov(ISf,ISh) / var(ISh)) * (mean(ISh) - theta) 
     }
 end
 
@@ -206,6 +201,7 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
         plan_time += CPlo["plan_time"]
         MC_time += CPlo["MC_time"]
     catch
+        rethrow()
         error("No nominal solution at lo inflation $(lo)")
     end
     for i in 1:5
@@ -213,7 +209,8 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
             CPhi = collision_probability(P0, hi, LQG, Nparticles, method = method, targeted = true, CPgoal = CPgoal, alphafilter = alphafilter)
             plan_time += CPhi["plan_time"]
             MC_time += CPhi["MC_time"]
-            break
+            CPhi["CP"] < CPgoal && break
+            hi = lo + (hi-lo)*1.2   # super duper ad hoc
         catch
             hi = (lo+hi)/2
             if i > 4
@@ -237,6 +234,13 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
         verbose && @printf("Iteration %d: eps interval (%4f, %4f) CP interval (%4f, %4f, %4f) elapsed time %3fs\n", 
                            iter, lo, hi, CPhi["CP"], CPmid["CP"], CPlo["CP"], toq())
         abs(CPmid["CP"] - CPgoal) < reltol*CPgoal && break
+        if (hi - lo) < 1e-4    #  also ad hoc; essentially all ad hoc decisions (including hi0)
+            mid = hi           #  should be determined by noise characteristics
+            CPmid = collision_probability(P0, mid, LQG, Nparticles, method = method, targeted = false)
+            plan_time += CPmid["plan_time"]
+            MC_time += CPmid["MC_time"]
+            break
+        end
         if CPmid["CP"] > CPgoal
             lo = mid
             CPlo = CPmid
