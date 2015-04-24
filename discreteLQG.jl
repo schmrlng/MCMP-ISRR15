@@ -326,3 +326,64 @@ function noisify_with_kick(LP::LQGPath, alpha;
 
     path + Vector{Float64}[xc[1:D.dim] for xc in xcomb], (1 / sum(exp(log_inv_likelihood_ratio)))
 end
+
+
+function batch_noisify_with_kick!(LP::LQGPath, alpha, M = 100,
+                                  xcomb = Array(Float64, 2*LP.D.dim, M, length(LP.path));
+                                  cw = 0,              # the collision window i-cw:i over which we're adjusting the noise distribution
+                                  ISDC = ISDistributionCache(LP, cw))
+    path = LP.path
+    T = length(path) - 1
+    D = LP.D
+    if T != D.T || cw != size(D.Acomb,2) - 1
+        sethorizon(D, T, cw)
+    end
+    if size(xcomb) != (2*D.dim, M, T+1)
+        warn("Preallocated noise matrix is the wrong size??")
+        xcomb = Array(Float64, 2*LP.D.dim, M, length(path))
+    end
+
+    icts = rand(Multinomial(M, alpha))
+    iranges = UnitRange{Int64}[j-i+1:j for (i,j) in zip(icts, cumsum(icts))]      # what am i doing lol
+    ### pre-store noise for corresponding non-IS particle in xcomb
+    rand!(D.Ncomb[1][1:D.dim], view(xcomb, 1:D.dim, :, 1))
+    for t in 1:T
+        rand!(D.Ncomb[t+1], view(xcomb, :, :, t+1))
+    end
+    ###
+
+    for (i, ir) in enumerate(iranges)
+        if !isempty(ir)
+            k = LP.cops[i].k
+            for t in k-ISDC.wsizes[i]:k
+                rand!(ISDC.ds[i,t], view(xcomb, :, ir, t))
+            end
+        end
+    end
+
+    log_inv_likelihood_ratio = repmat(log(alpha)', M, 1)
+    nominal_logpdfs = hcat(PDMats.quad(D.Σinv[1], view(xcomb, 1:D.dim, :, 1)),
+                           [PDMats.quad(D.Σinv[t], view(xcomb, :, :, t)) for t in 2:T+1]...)
+    diff1 = zeros(D.dim, M)
+    diff2 = zeros(2*D.dim, M)
+    for j in 1:length(LP.cops)
+        k = LP.cops[j].k
+        for t in k-ISDC.wsizes[j]:k
+            if t == 1
+                broadcast!(-, diff1, view(xcomb, 1:D.dim, :, t), view(ISDC.ds[j,t].μ, 1:D.dim))
+                kicked_logpdfs = PDMats.quad(D.Σinv[t], diff1)
+            else
+                broadcast!(-, diff2, view(xcomb, :, :, t), ISDC.ds[j,t].μ)
+                kicked_logpdfs = PDMats.quad(D.Σinv[t], diff2)
+            end
+            @devec log_inv_likelihood_ratio[:,j] += -0.5 .* (kicked_logpdfs - nominal_logpdfs[:,t])
+        end
+    end
+
+    xcomb[D.dim+1:2*D.dim, :, 1] = 0
+    for t in 1:T
+        xcomb[:, :, t+1] = D.Acomb[t,1] * view(xcomb, :, :, t) + view(xcomb, :, :, t+1)
+    end
+
+    xcomb, (1 ./ sum(exp(log_inv_likelihood_ratio), 2))
+end

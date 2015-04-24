@@ -106,7 +106,8 @@ function collision_probability(P0::MPProblem, eps::Float64, LQG::DiscreteLQG, Np
                                alphafilter::Float64 = 1e-5,
                                targeted::Bool = false,
                                CPgoal::Float64 = .01,
-                               zhalt = 4.0)
+                               zhalt = 4.0,
+                               batch_size = 100)
     length(P0.V) < 2 && error("Near neighbor data needs to be prepopulated (e.g. from deterministic solution run)")
     CC0 = P0.CC
     CCI = inflate(P0.CC, eps)
@@ -156,21 +157,29 @@ function collision_probability(P0::MPProblem, eps::Float64, LQG::DiscreteLQG, Np
         varFN = 0.
         varHN = 0.
         covFHN = 0.
-        for i in 1:Nparticles
-            verbose && (mod(i, progressmod) == 0) && println(i)
-            p, lr = noisify_with_kick(path, alpha_normalized, seed=seed0+i, cw=cw, ISDC=ISDC)
-            f = lr*(~is_free_path(p, CC0))
-            h = lr*half_plane_breach_count(path, p)
-            covFHN = covFHN + (i - 1) * (f - meanF) * (h - meanH) / i
-            varFN = varFN + (i - 1) * (f - meanF)^2 / i
-            varHN = varHN + (i - 1) * (h - meanH)^2 / i
-            meanF = meanF + (f - meanF) / i
-            meanH = meanH + (h - meanH) / i
-            beta = covFHN / varHN
-            CP = meanF - beta * (meanH - theta)
-            CPvarN = max(varFN - 2*beta*covFHN + beta^2*varHN, 0.)   # numerical instability... crap
-            CPstd = sqrt(CPvarN) / i
-            targeted && i > 100 && abs(CP - CPgoal) > zhalt*CPstd && break
+        path_deviations, lrs = batch_noisify_with_kick!(path, alpha_normalized, batch_size, cw=cw, ISDC=ISDC)
+        i = 0
+        while true
+            for j in 1:length(lrs)
+                i += 1
+                verbose && (mod(i, progressmod) == 0) && println(i)
+                p = Vector{Float64}[path.path[t] + view(path_deviations, 1:LQG.dim, j, t) for t in 1:length(path)]
+                lr = lrs[j]
+                f = lr*(~is_free_path(p, CC0))
+                h = lr*half_plane_breach_count(path, p)
+                covFHN = covFHN + (i - 1) * (f - meanF) * (h - meanH) / i
+                varFN = varFN + (i - 1) * (f - meanF)^2 / i
+                varHN = varHN + (i - 1) * (h - meanH)^2 / i
+                meanF = meanF + (f - meanF) / i
+                meanH = meanH + (h - meanH) / i
+                beta = covFHN / varHN
+                CP = meanF - beta * (meanH - theta)
+                CPvarN = max(varFN - 2*beta*covFHN + beta^2*varHN, 0.)   # numerical instability... crap
+                CPstd = sqrt(CPvarN) / i
+            end
+            targeted && i >= 100 && abs(CP - CPgoal) > zhalt*CPstd && break
+            i >= Nparticles && break
+            path_deviations, lrs = batch_noisify_with_kick!(path, alpha_normalized, batch_size, path_deviations, cw=cw, ISDC=ISDC)
         end
     else
         error("Unsupported CP estimation method!")
