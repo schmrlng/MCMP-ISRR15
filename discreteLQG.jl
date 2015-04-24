@@ -183,10 +183,13 @@ function nonoccluded_cops(p::AbstractVector, CC::CollisionChecker, W::AbstractMa
     cands[selector]
 end
 
-extractchol(A::PDMat) = A.chol.uplo == 'U' ? A.chol.UL' : A.chol.UL
+function leftchol(A::PDMat)
+    cf = A.chol[:UL]
+    full(istriu(cf) ? cf' : cf)
+end
 function computecops(LP::LQGPath, CC::CollisionChecker, pthresh = 0.)
     LP.CC = CC
-    LP.cops = vcat([[(W = extractchol(LP.pwu[i].Σ);                     # likely the most ridiculous comprehension I've ever written
+    LP.cops = vcat([[(W = leftchol(LP.pwu[i].Σ);                     # likely the most ridiculous comprehension I've ever written
                       p = LP.path[i];
                       vf = p + W*pinv(LP.D.Cws*W)*(v-LP.D.Cws*p);       # d2f (hell yeah she is) is no different
                       COP(i, d2, vf, cop_to_hpv(LP.path[i], vf, LP.pwu[i]), halfplanetail(d2)))
@@ -211,7 +214,7 @@ function pointwise_pruned_uncertainty_CP_estimate(LP::LQGPath, CC::CollisionChec
     CCP_estimate = 1.
     for t in 1:T+1
         copsws = nonoccluded_cops(D.Cws*(path[t]+combined_unc[t].μ[1:D.dim]), CC, full(inv((D.Cws*combined_unc[t][1:D.dim]).Σ)))
-        W = extractchol(combined_unc[t][1:D.dim].Σ)
+        W = leftchol(combined_unc[t][1:D.dim].Σ)
         cops = [(path[t] + W*pinv(D.Cws*W)*(v-D.Cws*path[t])) for (d2,v) in copsws]
         hpvs = Vector{Float64}[[cop_to_hpv(path[t], cop, combined_unc[t][1:D.dim]), zeros(D.dim)] for cop in cops]
         CCP_estimate *= 1 - sum([halfplanetail(combined_unc[t], hpv) for hpv in hpvs])
@@ -257,7 +260,7 @@ function ISDistributionCache(LP::LQGPath, cw = 0)
             ds[i,t] = D.Ncomb[t]
         end
         bigA = hcat([D.Acomb[t,k-t] for t in max(k-cw,1):k-1]..., eye(2*D.dim))
-        bigW = full(blkdiag([sparse(extractchol(D.Ncomb[t].Σ)) for t in max(k-cw,1):k]...)) # awful
+        bigW = full(blkdiag([sparse(leftchol(D.Ncomb[t].Σ)) for t in max(k-cw,1):k]...))
         bigV = bigW*pinv(bigA[1:D.dim,:]*bigW)*(cop.v - path[k])
         bigV = reshape(bigV, 2*D.dim, div(length(bigV), 2*D.dim))
         for s in max(k-cw,1):k
@@ -367,16 +370,19 @@ function batch_noisify_with_kick!(LP::LQGPath, alpha, M = 100,
                            [PDMats.quad(D.Σinv[t], view(xcomb, :, :, t)) for t in 2:T+1]...)
     diff1 = zeros(D.dim, M)
     diff2 = zeros(2*D.dim, M)
-    kicked_logpdfs = zeros(M)
+    kicked_logpdfs = zeros(1, M)
     for j in 1:length(LP.cops)
         k = LP.cops[j].k
         for t in k-ISDC.wsizes[j]:k
+            cf = D.Σinv[t].chol[:UL]
             if t == 1
                 broadcast!(-, diff1, view(xcomb, 1:D.dim, :, t), view(ISDC.ds[j,t].μ, 1:D.dim))
-                PDMats.quad!(kicked_logpdfs, D.Σinv[t], diff1)
+                istriu(cf) ? A_mul_B!(diff1, cf, diff1) : At_mul_B!(diff1, cf, diff1)  # branch pred. loses 10%??
+                sumabs2!(kicked_logpdfs, diff1)   # PDMats.quad! is slower => pull request some time
             else
                 broadcast!(-, diff2, view(xcomb, :, :, t), ISDC.ds[j,t].μ)
-                PDMats.quad!(kicked_logpdfs, D.Σinv[t], diff2)
+                istriu(cf) ? A_mul_B!(diff2, cf, diff2) : At_mul_B!(diff2, cf, diff2)
+                sumabs2!(kicked_logpdfs, diff2)
             end
             # log_inv_likelihood_ratio[:,j] += -0.5 .* (kicked_logpdfs - nominal_logpdfs[:,t])
             BLAS.axpy!(-0.5,
