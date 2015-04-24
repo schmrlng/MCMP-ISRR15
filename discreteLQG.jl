@@ -246,7 +246,7 @@ function ISDistributionCache(LP::LQGPath, cw = 0)
     T = length(path) - 1
     D = LP.D
     if T != D.T || cw != size(D.Acomb,2) - 1
-        sethorizon(D, T, cw)    # Profile -> this could definitely take less time
+        sethorizon(D, T, cw)    # Profile -> this could definitely take less time (turns out nbd, but see below)
     end
     ds = Array(MvNormal, length(LP.cops), T+1)
     wsizes = fill(cw, length(LP.cops))
@@ -256,7 +256,7 @@ function ISDistributionCache(LP::LQGPath, cw = 0)
             ds[i,t] = D.Ncomb[t]
         end
         bigA = hcat([D.Acomb[t,k-t] for t in max(k-cw,1):k-1]..., eye(2*D.dim))
-        bigW = full(blkdiag([sparse(sqrtm(full(D.Ncomb[t].Σ))) for t in max(k-cw,1):k]...))
+        bigW = full(blkdiag([sparse(sqrtm(full(D.Ncomb[t].Σ))) for t in max(k-cw,1):k]...)) # awful
         bigV = bigW*pinv(bigA[1:D.dim,:]*bigW)*(cop.v - path[k])
         bigV = reshape(bigV, 2*D.dim, div(length(bigV), 2*D.dim))
         for s in max(k-cw,1):k
@@ -366,23 +366,28 @@ function batch_noisify_with_kick!(LP::LQGPath, alpha, M = 100,
                            [PDMats.quad(D.Σinv[t], view(xcomb, :, :, t)) for t in 2:T+1]...)
     diff1 = zeros(D.dim, M)
     diff2 = zeros(2*D.dim, M)
+    kicked_logpdfs = zeros(M)
     for j in 1:length(LP.cops)
         k = LP.cops[j].k
         for t in k-ISDC.wsizes[j]:k
             if t == 1
                 broadcast!(-, diff1, view(xcomb, 1:D.dim, :, t), view(ISDC.ds[j,t].μ, 1:D.dim))
-                kicked_logpdfs = PDMats.quad(D.Σinv[t], diff1)
+                PDMats.quad!(kicked_logpdfs, D.Σinv[t], diff1)
             else
                 broadcast!(-, diff2, view(xcomb, :, :, t), ISDC.ds[j,t].μ)
-                kicked_logpdfs = PDMats.quad(D.Σinv[t], diff2)
+                PDMats.quad!(kicked_logpdfs, D.Σinv[t], diff2)
             end
-            @devec log_inv_likelihood_ratio[:,j] += -0.5 .* (kicked_logpdfs - nominal_logpdfs[:,t])
+            # log_inv_likelihood_ratio[:,j] += -0.5 .* (kicked_logpdfs - nominal_logpdfs[:,t])
+            BLAS.axpy!(-0.5,
+                       BLAS.axpy!(-1., view(nominal_logpdfs, :,t), kicked_logpdfs),
+                       view(log_inv_likelihood_ratio, :, j))
         end
     end
 
     xcomb[D.dim+1:2*D.dim, :, 1] = 0
     for t in 1:T
-        xcomb[:, :, t+1] = D.Acomb[t,1] * view(xcomb, :, :, t) + view(xcomb, :, :, t+1)
+        # xcomb[:, :, t+1] = D.Acomb[t,1] * view(xcomb, :, :, t) + view(xcomb, :, :, t+1)
+        BLAS.gemm!('N', 'N', 1., D.Acomb[t,1], view(xcomb, :, :, t), 1., view(xcomb, :, :, t+1))
     end
 
     xcomb, (1 ./ sum(exp(log_inv_likelihood_ratio), 2))

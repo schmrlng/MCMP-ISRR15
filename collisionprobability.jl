@@ -159,6 +159,7 @@ function collision_probability(P0::MPProblem, eps::Float64, LQG::DiscreteLQG, Np
         covFHN = 0.
         path_deviations, lrs = batch_noisify_with_kick!(path, alpha_normalized, batch_size, cw=cw, ISDC=ISDC)
         i = 0
+        missed_target = false
         while true
             for j in 1:length(lrs)
                 i += 1
@@ -176,8 +177,9 @@ function collision_probability(P0::MPProblem, eps::Float64, LQG::DiscreteLQG, Np
                 CP = meanF - beta * (meanH - theta)
                 CPvarN = max(varFN - 2*beta*covFHN + beta^2*varHN, 0.)   # numerical instability... crap
                 CPstd = sqrt(CPvarN) / i
+                targeted && i >= 100 && abs(CP - CPgoal) > zhalt*CPstd && (missed_target = true; break)
             end
-            targeted && i >= 100 && abs(CP - CPgoal) > zhalt*CPstd && break
+            missed_target && break
             i >= Nparticles && break
             path_deviations, lrs = batch_noisify_with_kick!(path, alpha_normalized, batch_size, path_deviations, cw=cw, ISDC=ISDC)
         end
