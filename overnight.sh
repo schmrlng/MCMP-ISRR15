@@ -1,5 +1,6 @@
-julia ISRRresults.jl SI2GOOD 0.01 2 5
-# julia ISRRresults.jl SI2GOOD 0.001 10 30
-# julia ISRRresults.jl SI2BAD 0.01 10 30
-# julia ISRRresults.jl DI2 0.01 10 30
-# julia ISRRresults.jl SI3 0.01 10 30
+julia ISRRresults.jl SI2GOOD 0.01 20 30 | tee -a "LOGS/SI2GOOD_0.01_log"
+julia ISRRresults.jl SI2GOOD 0.001 20 30 | tee -a "LOGS/SI2GOOD_0.001_log"
+# julia ISRRresults.jl SI2BAD 0.01 20 30 | tee -a "LOGS/SI2BAD_0.01_log"
+julia ISRRresults.jl DI2 0.01 20 30 | tee -a "LOGS/DI2_0.01_log"
+julia ISRRresults.jl SI3 0.01 20 30 | tee -a "LOGS/SI3_0.01_log"
+julia ISRRresults.jl DI3 0.01 20 30 | tee -a "LOGS/SI3_0.01_log"

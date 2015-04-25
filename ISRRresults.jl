@@ -28,20 +28,20 @@ function double_integrator_noise(d)
     Vc, Wc, P0
 end
 
-function ISRR_test_problems(setup = "SI2GOOD")
+function ISRR_test_problems(setup = "SI2GOOD", SIdt = 0.015, DIdt = .05)
     if setup == "SI2GOOD"
         P = MPProblem(UnitHypercube(2),
                       Vector2(.1,.1),
                       PointGoal([.9, .9]),
                       PointRobot2D(ISRR_POLY))
-        DLQG = SingleIntegrator(2, nsf=0.4, dt=.015)
+        DLQG = SingleIntegrator(2, nsf=0.4, dt = SIdt)
         lo, hi = 0.001, 0.04
     elseif setup == "SI2BAD"
         P = MPProblem(UnitHypercube(2),
                       Vector2(.1,.1),
                       PointGoal([.9, .9]),
                       PointRobot2D(ISRR_POLY_WITH_SPIKE))
-        DLQG = SingleIntegrator(2, nsf=0.4, dt=.015)
+        DLQG = SingleIntegrator(2, nsf=0.4, dt = SIdt)
         lo, hi = 0.001, 0.04
     elseif setup == "DI2"
         P = MPProblem(DoubleIntegrator(2, vmax = 0.5),
@@ -49,14 +49,14 @@ function ISRR_test_problems(setup = "SI2GOOD")
                       PointGoal([.9, .9, 0., 0.]),
                       PointRobot2D(ISRR_POLY))
         P.SS.dist.cmax = 1.
-        DLQG = DiscreteLQG(P.SS, double_integrator_noise(2)..., nsf=0.6, dt = .05)
+        DLQG = DiscreteLQG(P.SS, double_integrator_noise(2)..., nsf=0.6, dt = DIdt)
         lo, hi = 0.001, 0.05
     elseif setup == "SI3"
         P = MPProblem(UnitHypercube(3),
                       [.1,.1,.1],
                       PointGoal([.9,.5,.1]),
                       PointRobotNDBoxes(BOXES3D))
-        DLQG = SingleIntegrator(3, nsf=0.5, dt=.015)
+        DLQG = SingleIntegrator(3, nsf=0.5, dt = SIdt)
         lo, hi = 0.001, 0.04
     elseif setup == "DI3"
         P = MPProblem(DoubleIntegrator(3, vmax = 0.5),
@@ -64,7 +64,7 @@ function ISRR_test_problems(setup = "SI2GOOD")
                       PointGoal([.9,.5,.1,0.,0.,0.]),
                       PointRobotNDBoxes(BOXES3D))
         P.SS.dist.cmax = 1.
-        DLQG = DiscreteLQG(P.SS, double_integrator_noise(3)..., nsf=0.6, dt = .05)
+        DLQG = DiscreteLQG(P.SS, double_integrator_noise(3)..., nsf=0.6, dt = DIdt)
         lo, hi = 0.001, 0.05
     end
     P, DLQG, lo, hi
@@ -93,7 +93,7 @@ function run_tests(setup, CPgoal, M=10, N=20; verbose=true, writefile=false)
 
         for n in 1:N
             println("=> RUN $n")
-            push!(results, binary_search_CP(P, CPgoal, DLQG, 500, lo = lo, hi = hi, verbose = verbose))
+            push!(results, binary_search_CP(P, CPgoal, DLQG, 500, lo = lo, hi = hi, verbose = verbose)[1])
         end
     end
     

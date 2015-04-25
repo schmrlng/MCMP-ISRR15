@@ -12,7 +12,7 @@ function collision_probability_stats(P0::MPProblem, eps::Float64, LQG::DiscreteL
                                      progressmod::Int = 1000,
                                      vis::Bool = {},
                                      VR::Bool = true,
-                                     alphafilter = 1e-5)
+                                     alphafilter = 1e-5)        # TODO: rewrite with batch_noisify
     length(P0.V) < 2 && error("Near neighbor data needs to be prepopulated (e.g. from deterministic solution run)")
     CC0 = P0.CC
     CCI = inflate(P0.CC, eps)
@@ -206,11 +206,13 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
     mid = 0.
     plan_time = 0.
     MC_time = 0.
+    particle_ct = 0
     alphafilter = min(1e-5, CPgoal / Nparticles)    # not at all the right quantity, but it's something
     try
         CPlo = collision_probability(P0, lo, LQG, Nparticles, method = method, targeted = true, CPgoal = CPgoal, alphafilter = alphafilter)
         plan_time += CPlo["plan_time"]
         MC_time += CPlo["MC_time"]
+        particle_ct += CPlo["Nparticles"]
     catch
         rethrow()
         error("No nominal solution at lo inflation $(lo)")
@@ -220,6 +222,7 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
             CPhi = collision_probability(P0, hi, LQG, Nparticles, method = method, targeted = true, CPgoal = CPgoal, alphafilter = alphafilter)
             plan_time += CPhi["plan_time"]
             MC_time += CPhi["MC_time"]
+            particle_ct += CPhi["Nparticles"]
             CPhi["CP"] < CPgoal && break
             hi = lo + (hi-lo)*1.2   # super duper ad hoc
         catch
@@ -241,6 +244,7 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
         CPmid = collision_probability(P0, mid, LQG, Nparticles, method = method, targeted = true, CPgoal = CPgoal, alphafilter = alphafilter)
         plan_time += CPmid["plan_time"]
         MC_time += CPmid["MC_time"]
+        particle_ct += CPmid["Nparticles"]
         verbose && @printf("Iteration %d: eps interval (%4f, %4f) CP interval (%4f, %4f, %4f) elapsed time %3fs\n", 
                            iter, lo, hi, CPhi["CP"], CPmid["CP"], CPlo["CP"], toq())
         abs(CPmid["CP"] - CPgoal) < reltol*CPgoal && break
@@ -249,6 +253,7 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
             CPmid = collision_probability(P0, mid, LQG, Nparticles, method = method, targeted = false)
             plan_time += CPmid["plan_time"]
             MC_time += CPmid["MC_time"]
+            particle_ct += CPmid["Nparticles"]
             break
         end
         if CPmid["CP"] > CPgoal
@@ -275,8 +280,9 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
         "CPstd" => CPmid["CPstd"],
         "cost" => CPmid["cost"],
         "disc_pts" => length(CPmid["path"]),
-        "iter" => iter
-    }
+        "iter" => iter,
+        "particles" => particle_ct
+    }, CPmid
 end
 
 ## Estimators

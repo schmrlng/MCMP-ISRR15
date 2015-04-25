@@ -183,7 +183,7 @@ function nonoccluded_cops(p::AbstractVector, CC::CollisionChecker, W::AbstractMa
     cands[selector]
 end
 
-function leftchol(A::PDMat)
+function leftchol(A::PDMats.PDMat)
     cf = A.chol[:UL]
     full(istriu(cf) ? cf' : cf)
 end
@@ -367,7 +367,7 @@ function batch_noisify_with_kick!(LP::LQGPath, alpha, M = 100,
 
     log_inv_likelihood_ratio = repmat(log(alpha)', M, 1)
     nominal_logpdfs = hcat(PDMats.quad(D.Σinv[1], view(xcomb, 1:D.dim, :, 1)),
-                           [PDMats.quad(D.Σinv[t], view(xcomb, :, :, t)) for t in 2:T+1]...)
+                           [PDMats.quad(D.Σinv[t], view(xcomb, :, :, t)) for t in 2:T+1]...)  # TODO: don't need to explicitly subtract this every iteration
     diff1 = zeros(D.dim, M)
     diff2 = zeros(2*D.dim, M)
     kicked_logpdfs = zeros(1, M)
