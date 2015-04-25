@@ -1,9 +1,23 @@
+import MotionPlanning.is_free_path
+
 function shrink_state_space(SS::StateSpace, eps::Float64)   # ultimately unused - I can enforce boundaries with explicit obstacles if desired
     SSshrunk = copy(SS)
     SSshrunk.lo += eps
     SSshrunk.hi -= eps
     SSshrunk
 end
+
+function is_free_path(path::Path, CC::CollisionChecker, C::AbstractMatrix)  # TODO: add to MotionPlanning, maybe abstract e.g. WorkspaceCC
+    p = C*path[1]
+    for i in 1:length(path)-1
+        np = C*path[i+1]
+        !is_free_motion(p, np, CC) && return false
+        p = np    # youdontsay.jpg
+    end
+    true
+end
+
+###
 
 function plot_path_uncertainty_visualization(P0::MPProblem, LQG::DiscreteLQG, path::LQGPath, eps::Float64)
     plot(P0, sol=false, meta=false)
@@ -59,7 +73,7 @@ function collision_probability_stats(P0::MPProblem, eps::Float64, LQG::DiscreteL
     particle_paths = [((mod(i, progressmod) == 0 && println(i));
                        noisify(path, seed=seed0+i))
                       for i in 1:Nparticles]
-    f = Float64[~is_free_path(p, CC0) for p in particle_paths]
+    f = Float64[~is_free_path(p, CC0, LQG.Cws) for p in particle_paths]
     h = Float64[half_plane_breach_count(path, p) for p in particle_paths]
     println("Naive MC: $(toq())")
 
@@ -70,7 +84,7 @@ function collision_probability_stats(P0::MPProblem, eps::Float64, LQG::DiscreteL
                       noisify_with_kick(path, alpha_normalized,
                                         seed=seed0+i, cw=cw, ISDC=ISDC))
                     for i in 1:Nparticles]
-        ISf = Float64[lr*(~is_free_path(p, CC0)) for (p, lr) in IS_paths]
+        ISf = Float64[lr*(~is_free_path(p, CC0, LQG.Cws)) for (p, lr) in IS_paths]
         ISh = Float64[lr*half_plane_breach_count(path, p) for (p, lr) in IS_paths]
         println("Variance Reduction: $(toq())")
     else
@@ -116,6 +130,7 @@ function collision_probability(P0::MPProblem, eps::Float64, LQG::DiscreteLQG, Np
     P0.CC = CCI
     tic()
     fmtstar!(P0, length(P0.V), connections = :R, r = P0.solution.metadata["r"])  # actually r doesn't matter - near neighbors sets are precomputed
+    P0.status == :failed && error("CP estimation planning phase failure - try different planning cache parameters.")
     local path::LQGPath
     try
         path = LQGPath(discretize_path(P0, LQG.dt), LQG)
@@ -133,7 +148,7 @@ function collision_probability(P0::MPProblem, eps::Float64, LQG::DiscreteLQG, Np
         CPstd = 0.
         for i in 1:Nparticles
             verbose && (mod(i, progressmod) == 0) && println(i)
-            f = ~is_free_path(noisify(path, seed=seed0+i), CC0)
+            f = ~is_free_path(noisify(path, seed=seed0+i), CC0, LQG.Cws)
             CPvarN = CPvarN + (i - 1) * (f - CP)^2 / i
             CP = CP + (f - CP) / i
             CPstd = sqrt(CPvarN) / i
@@ -168,7 +183,7 @@ function collision_probability(P0::MPProblem, eps::Float64, LQG::DiscreteLQG, Np
                 verbose && (mod(i, progressmod) == 0) && println(i)
                 p = Vector{Float64}[path.path[t] + view(path_deviations, 1:LQG.dim, j, t) for t in 1:length(path)]
                 lr = lrs[j]
-                f = lr*(~is_free_path(p, CC0))
+                f = lr*(~is_free_path(p, CC0, LQG.Cws))
                 h = lr*half_plane_breach_count(path, p)
                 covFHN = covFHN + (i - 1) * (f - meanF) * (h - meanH) / i
                 varFN = varFN + (i - 1) * (f - meanF)^2 / i
