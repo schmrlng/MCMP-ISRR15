@@ -28,8 +28,8 @@ function double_integrator_noise(d)
     Vc, Wc, P0
 end
 
-const DOUBLE_INTEGRATOR_2D = DoubleIntegrator(2, vmax = 0.5)
-const DOUBLE_INTEGRATOR_3D = DoubleIntegrator(3, vmax = 0.5)
+!isdefined(:DOUBLE_INTEGRATOR_2D) && (const DOUBLE_INTEGRATOR_2D = DoubleIntegrator(2, vmax = 0.5))
+!isdefined(:DOUBLE_INTEGRATOR_3D) && (const DOUBLE_INTEGRATOR_3D = DoubleIntegrator(3, vmax = 0.5))
 
 function ISRR_test_problems(setup = "SI2GOOD", SIdt = 0.015, DIdt = .05)
     if setup == "SI2GOOD"

@@ -206,7 +206,8 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
                           itermax = 20, lo::Float64 = 0., hi::Float64 = .04, reltol = .1, method::Symbol = :VR, verbose = false, vis = false)
     tic()
     local CPlo, CPhi, CPmid
-    vis && (CPmid_list = {})
+    P00 = P0    # keeping this around in case we apply homotopy blocking strat; also this name is too good to pass up
+    lo0 = lo    # in keeping with the above theme
     iter = 0
     mid = 0.
     plan_time = 0.
@@ -242,28 +243,38 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
     end
     verbose && @printf("Iteration %d: eps interval (%4f, %4f) CP interval (%4f, %4f, %4f) elapsed time %3fs\n", 
                        iter, lo, hi, CPhi["CP"], CPgoal, CPlo["CP"], toq())
+    vis && (CPeval_list = [CPlo, CPhi])
 
     for iter in 1:itermax
         tic()
         mid = (lo+hi)/2
         CPmid = collision_probability(P0, mid, LQG, Nparticles, method = method, targeted = true, CPgoal = CPgoal, alphafilter = alphafilter)
-        vis && push!(CPmid_list, CPmid)
+        vis && push!(CPeval_list, CPmid)
         plan_time += CPmid["plan_time"]
         MC_time += CPmid["MC_time"]
         particle_ct += CPmid["Nparticles"]
         verbose && @printf("Iteration %d: eps interval (%4f, %4f) CP interval (%4f, %4f, %4f) elapsed time %3fs\n", 
                            iter, lo, hi, CPhi["CP"], CPmid["CP"], CPlo["CP"], toq())
         abs(CPmid["CP"] - CPgoal) < reltol*CPgoal && break
-        if (hi - lo) < 1e-4    #  also ad hoc; essentially all ad hoc decisions (including hi0)
-            mid = hi           #  should be determined by noise characteristics
-            CPmid = collision_probability(P0, mid, LQG, Nparticles, method = method, targeted = false)
-            vis && push!(CPmid_list, CPmid)
-            plan_time += CPmid["plan_time"]
-            MC_time += CPmid["MC_time"]
-            particle_ct += CPmid["Nparticles"]
-            break
-        end
-        if CPmid["CP"] > CPgoal
+        if (hi - lo) < 1e-4    #  also ad hoc; essentially all ad hoc decisions (including hi0) should be determined by noise characteristics (TODO)
+            if isa(P0.SS, RealVectorMetricSpace)   # checking if path is smoothed (=> CP should vary continuously with eps within homotopy)
+                verbose && println("Blocking riskier homotopy class and resetting lower bisection tolerance")
+                P0 = copy(P0)  #  making a copy of this, not just the CC, for vis purposes
+                # ccopi = indmin([cop.d2 for cop in CPlo["path"].cops])                          # awful,
+                # P0.CC = addblocker(P0.CC, CPlo["path"].path[CPlo["path"].cops[ccopi].k], hi)   # just awful
+                perigee = indmax(sparsevec(Int[cop.k for cop in CPlo["path"].cops], Float64[cop.hpbp for cop in CPlo["path"].cops]))
+                P0.CC = addblocker(P0.CC, CPlo["path"].path[perigee], hi)
+                lo = lo0
+            else
+                mid = hi
+                CPmid = collision_probability(P0, mid, LQG, Nparticles, method = method, targeted = false)
+                vis && push!(CPeval_list, CPmid)
+                plan_time += CPmid["plan_time"]
+                MC_time += CPmid["MC_time"]
+                particle_ct += CPmid["Nparticles"]
+                break
+            end
+        elseif CPmid["CP"] > CPgoal
             lo = mid
             CPlo = CPmid
         else
@@ -272,6 +283,7 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
         end
     end
 
+    P0 = P00
     alpha_ellipse = ellipsoid_breach_probabilities(CPmid["path"], P0.CC)
     {
         "ep" => mid,
@@ -289,7 +301,7 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
         "disc_pts" => length(CPmid["path"]),
         "iter" => iter,
         "particles" => particle_ct
-    }, vis ? CPmid_list : CPmid
+    }, vis ? CPeval_list : CPmid
 end
 
 ## Estimators

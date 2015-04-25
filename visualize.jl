@@ -8,7 +8,8 @@ function visualize_CP_evolution(cpds)
             plot_path_uncertainty_visualization(cpds[i]["P0"], cpds[i]["LQG"], cpds[i]["path"], cpds[i]["eps"])
             cp = cpds[i]["CP"]
             cpstd = cpds[i]["CPstd"]
-            title(latexstring("CP = $(round(100*cp,2))\% \$\\pm\$ $(round(100*cpstd,2))\%"))
+            eps = cpds[i]["eps"]
+            title(latexstring("CP = $(round(100*cp,2))\% \$\\pm\$ $(round(100*cpstd,2))\%, eps = $(round(eps,5))"))
         end
     end
 end
