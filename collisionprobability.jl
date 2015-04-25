@@ -292,19 +292,6 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
     }, vis ? CPmid_list : CPmid
 end
 
-function visualize_CP_evolution(cpds)
-    flush(STDOUT)
-    f = figure()
-    @manipulate for i in slider(1:length(cpds), value=1)
-        withfig(f) do
-            plot_path_uncertainty_visualization(cpds[i]["P0"], cpds[i]["LQG"], cpds[i]["path"], cpds[i]["eps"])
-            cp = cpds[i]["CP"]
-            cpstd = cpds[i]["CPstd"]
-            title(latexstring("CP = $(round(100*cp,2))\% \$\\pm\$ $(round(100*cpstd,2))\%"))
-        end
-    end
-end
-
 ## Estimators
 
 cummean(x) = cumsum(x) ./ [1:length(x)]

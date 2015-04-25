@@ -28,6 +28,9 @@ function double_integrator_noise(d)
     Vc, Wc, P0
 end
 
+const DOUBLE_INTEGRATOR_2D = DoubleIntegrator(2, vmax = 0.5)
+const DOUBLE_INTEGRATOR_3D = DoubleIntegrator(3, vmax = 0.5)
+
 function ISRR_test_problems(setup = "SI2GOOD", SIdt = 0.015, DIdt = .05)
     if setup == "SI2GOOD"
         P = MPProblem(UnitHypercube(2),
@@ -44,7 +47,7 @@ function ISRR_test_problems(setup = "SI2GOOD", SIdt = 0.015, DIdt = .05)
         DLQG = SingleIntegrator(2, nsf=0.4, dt = SIdt)
         lo, hi = 0.001, 0.04
     elseif setup == "DI2"
-        P = MPProblem(DoubleIntegrator(2, vmax = 0.5),
+        P = MPProblem(DOUBLE_INTEGRATOR_2D,
                       [.1, .1, 0., 0.],
                       PointGoal([.9, .9, 0., 0.]),
                       PointRobot2D(ISRR_POLY))
@@ -59,7 +62,7 @@ function ISRR_test_problems(setup = "SI2GOOD", SIdt = 0.015, DIdt = .05)
         DLQG = SingleIntegrator(3, nsf=0.5, dt = SIdt)
         lo, hi = 0.001, 0.04
     elseif setup == "DI3"
-        P = MPProblem(DoubleIntegrator(3, vmax = 0.5),
+        P = MPProblem(DOUBLE_INTEGRATOR_3D,
                       [.1,.1,.1,0.,0.,0.],
                       PointGoal([.9,.5,.1,0.,0.,0.]),
                       PointRobotNDBoxes(BOXES3D))
@@ -68,13 +71,6 @@ function ISRR_test_problems(setup = "SI2GOOD", SIdt = 0.015, DIdt = .05)
         lo, hi = 0.001, 0.05
     end
     P, DLQG, lo, hi
-end
-
-function test_run(setup, CPgoal)
-    P, DLQG, lo, hi = ISRR_test_problems(setup)
-    isa(P.SS, RealVectorMetricSpace) && fmtstar!(P, 5000, connections = :R, rm = 1.5)
-    isa(P.SS, LinearQuadraticStateSpace) && fmtstar!(P, 2500, connections = :R, r = 1.)
-    visualize_CP_evolution(binary_search_CP(P, CPgoal, DLQG, 500, lo = lo, hi = hi, verbose = true, vis = true)[2])
 end
 
 function run_tests(setup, CPgoal, M=10, N=20; verbose=true, writefile=false)
