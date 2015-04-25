@@ -5,6 +5,24 @@ function shrink_state_space(SS::StateSpace, eps::Float64)   # ultimately unused 
     SSshrunk
 end
 
+function plot_path_uncertainty_visualization(P0::MPProblem, LQG::DiscreteLQG, path::LQGPath, eps::Float64)
+    plot(P0, sol=false, meta=false)
+    plot_path([LQG.Cws*p for p in path.path], color="blue")
+    eps > 0 && plot(inflate(P0.CC, eps), P0.SS.lo, P0.SS.hi, alpha=.2)
+    for t in 1:length(path.pwu)
+        plot_ellipse(LQG.Cws*path.path[t], quantile(Chisq(2), .95)*cov(LQG.Cws*path.pwu[t]), color="purple", alpha=.2)
+    end
+    plot_line_segments(path.path[[c.k for c in path.cops]],
+                       [c.v for c in path.cops], linewidth=.5, linestyle="-", zorder=1, color="black", alpha=0.8)
+    plot_line_segments(path.path[[c.k for c in path.cops]],
+                       path.path[[c.k for c in path.cops]] + [c.hpv for c in path.cops], linewidth=.5, linestyle="-", zorder=1, color="green", alpha=1.)
+
+    # pwpu = pointwise_pruned_uncertainty(dpath, LQG, P0.obs)
+    # for t in 1:1:length(pwpu)
+    #     plot_ellipse(dpath[t], quantile(Chisq(2), .95)*cov(pwpu[t]), color="purple", alpha=.2)
+    # end
+end
+
 function collision_probability_stats(P0::MPProblem, eps::Float64, LQG::DiscreteLQG, Nparticles = 1000; 
                                      cw::Int = -1,
                                      seed0::Int = abs(rand(Int)),
@@ -60,23 +78,7 @@ function collision_probability_stats(P0::MPProblem, eps::Float64, LQG::DiscreteL
         IS_paths = []
     end
 
-    if vis
-        plot(P0, sol=false, meta=false)
-        plot_path([LQG.Cws*p for p in path.path], color="blue")
-        eps > 0 && plot(CCI, P0.SS.lo, P0.SS.hi, alpha=.2)
-        for t in 1:length(path.pwu)
-            plot_ellipse(LQG.Cws*path.path[t], quantile(Chisq(2), .95)*cov(LQG.Cws*path.pwu[t]), color="purple", alpha=.2)
-        end
-        plot_line_segments(path.path[[c.k for c in path.cops]],
-                           [c.v for c in path.cops], linewidth=.5, linestyle="-", zorder=1, color="black", alpha=0.8)
-        plot_line_segments(path.path[[c.k for c in path.cops]],
-                           path.path[[c.k for c in path.cops]] + [c.hpv for c in path.cops], linewidth=.5, linestyle="-", zorder=1, color="green", alpha=1.)
-
-        # pwpu = pointwise_pruned_uncertainty(dpath, LQG, P0.obs)
-        # for t in 1:1:length(pwpu)
-        #     plot_ellipse(dpath[t], quantile(Chisq(2), .95)*cov(pwpu[t]), color="purple", alpha=.2)
-        # end
-    end
+    vis && plot_path_uncertainty_visualization(P0, LQG, path, eps)
 
     prunedCPestimate = pointwise_pruned_uncertainty_CP_estimate(path, CC0)
 
@@ -114,14 +116,14 @@ function collision_probability(P0::MPProblem, eps::Float64, LQG::DiscreteLQG, Np
     P0.CC = CCI
     tic()
     fmtstar!(P0, length(P0.V), connections = :R, r = P0.solution.metadata["r"])  # actually r doesn't matter - near neighbors sets are precomputed
-    plan_time = toq()
-    verbose && println("Planning Time $plan_time")
     local path::LQGPath
     try
         path = LQGPath(discretize_path(P0, LQG.dt), LQG)
     finally
         P0.CC = CC0
     end
+    plan_time = toq()
+    verbose && println("Planning Time $plan_time")
 
     tic()
     i = 0
@@ -188,6 +190,8 @@ function collision_probability(P0::MPProblem, eps::Float64, LQG::DiscreteLQG, Np
     end
     {
         "P0" => P0,
+        "eps" => eps,
+        "LQG" => LQG,
         "CP" => CP,
         "CPstd" => CPstd,
         "path" => path,
@@ -199,10 +203,11 @@ function collision_probability(P0::MPProblem, eps::Float64, LQG::DiscreteLQG, Np
 end
 
 function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Nparticles::Int=1000;
-                          itermax = 20, lo::Float64 = 0., hi::Float64 = .04, reltol = .1, method::Symbol = :VR, verbose = false)
+                          itermax = 20, lo::Float64 = 0., hi::Float64 = .04, reltol = .1, method::Symbol = :VR, verbose = false, vis = false)
     tic()
-    iter = 0
     local CPlo, CPhi, CPmid
+    vis && (CPmid_list = {})
+    iter = 0
     mid = 0.
     plan_time = 0.
     MC_time = 0.
@@ -242,6 +247,7 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
         tic()
         mid = (lo+hi)/2
         CPmid = collision_probability(P0, mid, LQG, Nparticles, method = method, targeted = true, CPgoal = CPgoal, alphafilter = alphafilter)
+        vis && push!(CPmid_list, CPmid)
         plan_time += CPmid["plan_time"]
         MC_time += CPmid["MC_time"]
         particle_ct += CPmid["Nparticles"]
@@ -251,6 +257,7 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
         if (hi - lo) < 1e-4    #  also ad hoc; essentially all ad hoc decisions (including hi0)
             mid = hi           #  should be determined by noise characteristics
             CPmid = collision_probability(P0, mid, LQG, Nparticles, method = method, targeted = false)
+            vis && push!(CPmid_list, CPmid)
             plan_time += CPmid["plan_time"]
             MC_time += CPmid["MC_time"]
             particle_ct += CPmid["Nparticles"]
@@ -282,7 +289,20 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
         "disc_pts" => length(CPmid["path"]),
         "iter" => iter,
         "particles" => particle_ct
-    }, CPmid
+    }, vis ? CPmid_list : CPmid
+end
+
+function visualize_CP_evolution(cpds)
+    flush(STDOUT)
+    f = figure()
+    @manipulate for i in slider(1:length(cpds), value=1)
+        withfig(f) do
+            plot_path_uncertainty_visualization(cpds[i]["P0"], cpds[i]["LQG"], cpds[i]["path"], cpds[i]["eps"])
+            cp = cpds[i]["CP"]
+            cpstd = cpds[i]["CPstd"]
+            title(latexstring("CP = $(round(100*cp,2))\% \$\\pm\$ $(round(100*cpstd,2))\%"))
+        end
+    end
 end
 
 ## Estimators

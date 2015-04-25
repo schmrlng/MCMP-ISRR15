@@ -2,8 +2,8 @@ using PyPlot
 using MotionPlanning
 using ImmutableArrays
 using JSON
-include(Pkg.dir("MotionPlanning")*"/test/obstaclesets/2D.jl")
-include(Pkg.dir("MotionPlanning")*"/test/obstaclesets/ND.jl")
+!isdefined(:ISRR_POLY) && include(Pkg.dir("MotionPlanning")*"/test/obstaclesets/2D.jl")
+!isdefined(:BOXES3D) && include(Pkg.dir("MotionPlanning")*"/test/obstaclesets/ND.jl")
 include("discreteLQG.jl")
 include("collisionprobability.jl")
 include("printhelpers.jl")
@@ -70,11 +70,11 @@ function ISRR_test_problems(setup = "SI2GOOD", SIdt = 0.015, DIdt = .05)
     P, DLQG, lo, hi
 end
 
-function quick_test(setup, eps)
+function test_run(setup, CPgoal)
     P, DLQG, lo, hi = ISRR_test_problems(setup)
     isa(P.SS, RealVectorMetricSpace) && fmtstar!(P, 5000, connections = :R, rm = 1.5)
     isa(P.SS, LinearQuadraticStateSpace) && fmtstar!(P, 2500, connections = :R, r = 1.)
-    collision_probability_stats(P, eps, DLQG, 2000, vis=true)
+    visualize_CP_evolution(binary_search_CP(P, CPgoal, DLQG, 500, lo = lo, hi = hi, verbose = true, vis = true)[2])
 end
 
 function run_tests(setup, CPgoal, M=10, N=20; verbose=true, writefile=false)
@@ -107,5 +107,7 @@ function run_tests(setup, CPgoal, M=10, N=20; verbose=true, writefile=false)
     ret
 end
 
-run_tests(ARGS[1], parsefloat(ARGS[2]), 1, 1, verbose = false, writefile = false)
-run_tests(ARGS[1], parsefloat(ARGS[2]), parseint(ARGS[3]), parseint(ARGS[4]), writefile = true)
+if !isinteractive()
+    run_tests(ARGS[1], parsefloat(ARGS[2]), 1, 1, verbose = false, writefile = false)
+    run_tests(ARGS[1], parsefloat(ARGS[2]), parseint(ARGS[3]), parseint(ARGS[4]), writefile = true)
+end
