@@ -67,8 +67,8 @@ function ISRR_test_problems(setup = "SI2GOOD", SIdt = 0.015, DIdt = .05)
                       PointGoal([.9,.5,.1,0.,0.,0.]),
                       PointRobotNDBoxes(BOXES3D))
         P.SS.dist.cmax = 1.5        # TODO: better way of integrating with FMT (really, solver should set this)
-        DLQG = DiscreteLQG(P.SS, double_integrator_noise(3)..., nsf=0.4, dt = .1)
-        lo, hi = 0.001, 0.04
+        DLQG = DiscreteLQG(P.SS, double_integrator_noise(3)..., nsf=0.6, dt = .1)
+        lo, hi = 0.001, 0.03
     end
     P, DLQG, lo, hi
 end
@@ -84,7 +84,7 @@ function run_tests(setup, CPgoal, M=10, N=20; verbose=true, writefile=false)
         tic()
         isa(P.SS, RealVectorMetricSpace) && fmtstar!(P, 5000, connections = :R, rm = 1.5)
         setup == "DI2" && fmtstar!(P, 2500, connections = :R, r = 1.)
-        setup == "DI3" && fmtstar!(P, 3000, connections = :R, r = 1.5)
+        setup == "DI3" && fmtstar!(P, 3500, connections = :R, r = 1.5)
         push!(plan_cache_times, toq())
         println("Planner Cache Time: $(plan_cache_times[end])")
 

@@ -18,6 +18,6 @@ function test_run(setup, CPgoal)
     P, DLQG, lo, hi = ISRR_test_problems(setup)
     isa(P.SS, RealVectorMetricSpace) && fmtstar!(P, 5000, connections = :R, rm = 1.5)
     setup == "DI2" && fmtstar!(P, 2500, connections = :R, r = 1.)
-    setup == "DI3" && fmtstar!(P, 3000, connections = :R, r = 1.5)
+    setup == "DI3" && fmtstar!(P, 3500, connections = :R, r = 1.5)
     visualize_CP_evolution(binary_search_CP(P, CPgoal, DLQG, 500, lo = lo, hi = hi, verbose = true, vis = true)[2])
 end

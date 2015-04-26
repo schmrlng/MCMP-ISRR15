@@ -253,7 +253,7 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
         end
     end
     if !(CPhi["CP"] < CPgoal < CPlo["CP"])    # eps is inversely related to CP, so CPhi < CPlo
-        error("Initial bisection interval doesn't contain CPgoal: ", (CPhi["CP"], CPgoal, CPlo["CP"]))
+        error("Initial bisection interval $((hi, lo)) doesn't contain CPgoal: ", (CPhi["CP"], CPgoal, CPlo["CP"]))
     end
     verbose && @printf("Iteration %d: eps interval (%4f, %4f) CP interval (%4f, %4f, %4f) elapsed time %3fs\n", 
                        iter, lo, hi, CPhi["CP"], CPgoal, CPlo["CP"], toq())
