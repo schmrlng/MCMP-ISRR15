@@ -68,7 +68,7 @@ function ISRR_test_problems(setup = "SI2GOOD", SIdt = 0.015, DIdt = .05)
                       PointRobotNDBoxes(BOXES3D))
         P.SS.dist.cmax = 1.5        # TODO: better way of integrating with FMT (really, solver should set this)
         DLQG = DiscreteLQG(P.SS, double_integrator_noise(3)..., nsf=0.6, dt = .1)
-        lo, hi = 0.001, 0.03
+        lo, hi = 0.001, 0.04
     end
     P, DLQG, lo, hi
 end
@@ -78,19 +78,29 @@ function run_tests(setup, CPgoal, M=10, N=20; verbose=true, writefile=false)
     plan_cache_times = Float64[]
     results = {}
 
-    for m in 1:M
-        println("======== $(setup) Sample Set $(m) ========")
-        P.V = defaultNN(P.SS, P.init)
-        tic()
-        isa(P.SS, RealVectorMetricSpace) && fmtstar!(P, 5000, connections = :R, rm = 1.5)
-        setup == "DI2" && fmtstar!(P, 2500, connections = :R, r = 1.)
-        setup == "DI3" && fmtstar!(P, 3500, connections = :R, r = 1.5)
-        push!(plan_cache_times, toq())
-        println("Planner Cache Time: $(plan_cache_times[end])")
+    m = 0
+    while m < M
+        try
+            println("======== $(setup) Sample Set $(m+1) ========")
+            P.V = defaultNN(P.SS, P.init)
+            tic()
+            isa(P.SS, RealVectorMetricSpace) && fmtstar!(P, 5000, connections = :R, rm = 1.5)
+            setup == "DI2" && fmtstar!(P, 2500, connections = :R, r = 1.)
+            setup == "DI3" && fmtstar!(P, 3500, connections = :R, r = 1.5)
+            pct = toq()
+            println("Planner Cache Time: $pct")
 
-        for n in 1:N
-            println("=> RUN $n")
-            push!(results, binary_search_CP(P, CPgoal, DLQG, 500, lo = lo, hi = hi, verbose = verbose)[1])
+            round_results = {}
+            for n in 1:N
+                println("=> RUN $n")
+                push!(round_results, binary_search_CP(P, CPgoal, DLQG, 500, lo = lo, hi = hi, verbose = verbose)[1])
+            end
+
+            m += 1
+            push!(plan_cache_times, pct)
+            append!(results, round_results)
+        catch
+            println("Something wonky happened - e.g. a crappy DI planning sample set leading to wonky probabilities")
         end
     end
     P.V = defaultNN(P.SS, P.init)   # might help with a memory leak?
