@@ -130,7 +130,7 @@ function collision_probability(P0::MPProblem, eps::Float64, LQG::DiscreteLQG, Np
     P0.CC = CCI
     tic()
     fmtstar!(P0, length(P0.V), connections = :R, r = P0.solution.metadata["r"])  # actually r doesn't matter - near neighbors sets are precomputed
-    P0.status == :failed && error("CP estimation planning phase failure - try different planning cache parameters.")
+    P0.status == :failed && (P0.CC = CC0; throw("No nominal solution trajectory at inflation factor $(eps); decrease inflation or increase planning sample count."))
     local path::LQGPath
     try
         path = LQGPath(discretize_path(P0, LQG.dt), LQG)
@@ -235,7 +235,6 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
         MC_time += CPlo["MC_time"]
         particle_ct += CPlo["Nparticles"]
     catch
-        rethrow()
         error("No nominal solution at lo inflation $(lo)")
     end
     for i in 1:5
@@ -247,10 +246,10 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
             CPhi["CP"] < CPgoal && break
             hi = lo + (hi-lo)*1.2   # super duper ad hoc
         catch
-            hi = (lo+hi)/2
             if i > 4
                 error("No nominal solution at hi inflation $(hi) (after $i halvings)")
             end
+            hi = (lo+hi)/2
         end
     end
     if !(CPhi["CP"] < CPgoal < CPlo["CP"])    # eps is inversely related to CP, so CPhi < CPlo
