@@ -8,7 +8,7 @@ function shrink_state_space(SS::StateSpace, eps::Float64)   # ultimately unused 
 end
 
 function is_free_path(path::Path, CC::CollisionChecker, C::AbstractMatrix)  # TODO: add to MotionPlanning, maybe abstract e.g. WorkspaceCC
-    p = C*path[1]
+    p = C*path[1]                               # BIGGER TODO: interpolate CC instead of piecewise linear (we want zero-order hold on LQG, not nominal as well): matters for big dt
     for i in 1:length(path)-1
         np = C*path[i+1]
         !is_free_motion(p, np, CC) && return false
@@ -19,17 +19,17 @@ end
 
 ###
 
-function plot_path_uncertainty_visualization(P0::MPProblem, LQG::DiscreteLQG, path::LQGPath, eps::Float64)
+function plot_path_uncertainty_visualization(P0::MPProblem, LQG::DiscreteLQG, path::LQGPath, eps::Float64; cop_plot = true)
     plot(P0, sol=false, meta=false)
     plot_path([LQG.Cws*p for p in path.path], color="blue")
     eps > 0 && plot(inflate(P0.CC, eps), P0.SS.lo, P0.SS.hi, alpha=.2)
     for t in 1:length(path.pwu)
         plot_ellipse(LQG.Cws*path.path[t], quantile(Chisq(2), .95)*cov(LQG.Cws*path.pwu[t]), color="purple", alpha=.2)
     end
-    plot_line_segments(path.path[[c.k for c in path.cops]],
-                       [c.v for c in path.cops], linewidth=.5, linestyle="-", zorder=1, color="black", alpha=0.8)
-    plot_line_segments(path.path[[c.k for c in path.cops]],
-                       path.path[[c.k for c in path.cops]] + [c.hpv for c in path.cops], linewidth=.5, linestyle="-", zorder=1, color="green", alpha=1.)
+    cop_plot && plot_line_segments(path.path[[c.k for c in path.cops]],
+                                   [c.v for c in path.cops], linewidth=.5, linestyle="-", zorder=1, color="black", alpha=0.8)
+    cop_plot && plot_line_segments(path.path[[c.k for c in path.cops]],
+                                   path.path[[c.k for c in path.cops]] + [c.hpv for c in path.cops], linewidth=.5, linestyle="-", zorder=1, color="green", alpha=1.)
 
     # pwpu = pointwise_pruned_uncertainty(dpath, LQG, P0.obs)
     # for t in 1:1:length(pwpu)
@@ -218,7 +218,8 @@ function collision_probability(P0::MPProblem, eps::Float64, LQG::DiscreteLQG, Np
 end
 
 function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Nparticles::Int=1000;
-                          itermax = 20, lo::Float64 = 0., hi::Float64 = .04, reltol = .1, method::Symbol = :VR, verbose = false, vis = false)
+                          itermax = 25, lo::Float64 = 0., hi::Float64 = .04, reltol = .1, method::Symbol = :VR, verbose = false, vis = false)
+    P0.status != :solved && error("CP bisection requires that planning cache data already exists for this problem - run a solver first.")
     tic()
     local CPlo, CPhi, CPmid
     P00 = P0    # keeping this around in case we apply homotopy blocking strat; also this name is too good to pass up
@@ -296,6 +297,7 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
             CPhi = CPmid
         end
     end
+    iter == itermax && throw("Bisection with homotopy blocking seems to have failed. Either the problem is super tricky or our MC estimate missed along the way (should happen once every few hundred times with these stopping criteria?).")
 
     P0 = P00
     alpha_ellipse = ellipsoid_breach_probabilities(CPmid["path"], P0.CC)
