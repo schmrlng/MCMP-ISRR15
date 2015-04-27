@@ -273,12 +273,12 @@ function binary_search_CP(P0::MPProblem, CPgoal::Float64, LQG::DiscreteLQG, Npar
         abs(CPmid["CP"] - CPgoal) < reltol*CPgoal && break
         if (hi - lo) < 1e-4    #  also ad hoc; essentially all ad hoc decisions (including hi0) should be determined by noise characteristics (TODO)
             if isa(P0.SS, RealVectorMetricSpace)   # checking if path is smoothed (=> CP should vary continuously with eps within homotopy)
-                verbose && println("Blocking riskier homotopy class and resetting lower bisection tolerance")
                 P0 = copy(P0)  #  making a copy of this, not just the CC, for vis purposes
                 # ccopi = indmin([cop.d2 for cop in CPlo["path"].cops])                          # awful,
                 # P0.CC = addblocker(P0.CC, CPlo["path"].path[CPlo["path"].cops[ccopi].k], hi)   # just awful
                 perigee = indmax(sparsevec(Int[cop.k for cop in CPlo["path"].cops], Float64[cop.hpbp for cop in CPlo["path"].cops]))
                 P0.CC = addblocker(P0.CC, CPlo["path"].path[perigee], hi)
+                verbose && println("Blocking riskier homotopy class (p=$(CPlo["path"].path[perigee])), r=$hi) and resetting lower bisection tolerance")
                 lo = lo0
             else
                 mid = hi
