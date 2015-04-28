@@ -123,7 +123,7 @@ function collision_probability(P0::MPProblem, eps::Float64, LQG::DiscreteLQG, Np
                                targeted::Bool = false,
                                CPgoal::Float64 = .01,
                                zhalt = 4.0,
-                               batch_size = 100)
+                               batch_size = (targeted ? 100 : min(5000, Nparticles)))
     length(P0.V) < 2 && error("Near neighbor data needs to be prepopulated (e.g. from deterministic solution run)")
     CC0 = P0.CC
     CCI = inflate(P0.CC, eps)
