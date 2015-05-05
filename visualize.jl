@@ -3,7 +3,7 @@ using Interact
 function visualize_CP_evolution(cpds)
     flush(STDOUT)
     f = figure()
-    @manipulate for i in slider(1:length(cpds), value=1)
+    @manipulate for i in slider(1:length(cpds), value=length(cpds))
         withfig(f) do
             plot_path_uncertainty_visualization(cpds[i]["P0"], cpds[i]["LQG"], cpds[i]["path"], cpds[i]["eps"])
             cp = cpds[i]["CP"]
