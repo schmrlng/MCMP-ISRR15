@@ -1,11 +1,7 @@
 import Base.length
-using StatsBase
 using Distributions
-using HypothesisTests
 using ArrayViews
-using Convex
 using Devectorize
-# redirect_stderr() # to shut CVX "inaccurate solution" up
 include("mvnormalutils.jl")
 
 ### LQG typedef and utilities
