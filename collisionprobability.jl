@@ -19,7 +19,7 @@ end
 
 ###
 
-function plot_path_uncertainty_visualization(P0::MPProblem, LQG::DiscreteLQG, path::LQGPath, eps::Float64; cop_plot = true)
+function plot_path_uncertainty_visualization(P0::MPProblem, LQG::DiscreteLQG, path::LQGPath, eps::Float64; cop_plot = true, hpv_plot = false)
     plot(P0, sol=false, meta=false)
     plot_path([LQG.Cws*p for p in path.path], color="blue")
     eps > 0 && plot(inflate(P0.CC, eps), P0.SS.lo, P0.SS.hi, alpha=.2)
@@ -28,7 +28,7 @@ function plot_path_uncertainty_visualization(P0::MPProblem, LQG::DiscreteLQG, pa
     end
     cop_plot && plot_line_segments(path.path[[c.k for c in path.cops]],
                                    [c.v for c in path.cops], linewidth=.5, linestyle="-", zorder=1, color="black", alpha=0.8)
-    cop_plot && plot_line_segments(path.path[[c.k for c in path.cops]],
+    hpv_plot && plot_line_segments(path.path[[c.k for c in path.cops]],
                                    path.path[[c.k for c in path.cops]] + [c.hpv for c in path.cops], linewidth=.5, linestyle="-", zorder=1, color="green", alpha=1.)
 
     # pwpu = pointwise_pruned_uncertainty(dpath, LQG, P0.obs)
