@@ -28,7 +28,11 @@ function double_integrator_noise(d)
     Vc, Wc, P0
 end
 
-!isdefined(:DOUBLE_INTEGRATOR_2D) && (const DOUBLE_INTEGRATOR_2D = DoubleIntegrator(2, vmax = 0.5))
+if !isdefined(:DOUBLE_INTEGRATOR_2D)
+    const DOUBLE_INTEGRATOR_2D = DoubleIntegrator(2, vmax = 0.5)
+    const DI2NNDC = NNDatastructureCache(Pkg.dir("MotionPlanning")*"/data/DI_20000_0.7");
+    const DI2V = loadNN!(defaultNN(DOUBLE_INTEGRATOR_2D, zeros(4)), DI2NNDC);
+end
 !isdefined(:DOUBLE_INTEGRATOR_3D) && (const DOUBLE_INTEGRATOR_3D = DoubleIntegrator(3, vmax = 0.5))
 
 function ISRR_test_problems(setup = "SI2GOOD", SIdt = 0.015, DIdt = .05)
