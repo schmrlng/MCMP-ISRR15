@@ -22,12 +22,12 @@ function test_run(setup, CPgoal)
     visualize_CP_evolution(binary_search_CP(P, CPgoal, DLQG, 500, lo = lo, hi = hi, verbose = true, vis = true)[2])
 end
 
-function test_run(setup, CPgoal, NNDC::NNDatastructureCache)
+function test_run(setup, CPgoal, V::NearNeighborCache)
     P, DLQG, lo, hi = ISRR_test_problems(setup)
     isa(P.SS, RealVectorMetricSpace) && fmtstar!(P, 5000, connections = :R, rm = 1.5)
     if setup == "DI2" || setup == "DI3"
-        loadNN!(P.V, NNDC, P.init, P.goal, P.CC)
-        fmtstar!(P, connections = :R, r = maximum(NNDC.DS))
+        P.V = V
+        fmtstar!(P, connections = :R, r = maximum(V.DS))
     end
     visualize_CP_evolution(binary_search_CP(P, CPgoal, DLQG, 500, lo = lo, hi = hi, verbose = true, vis = true)[2])
 end
