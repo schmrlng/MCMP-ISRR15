@@ -5,7 +5,7 @@ Code associated with [Monte Carlo Motion Planning for Robot Trajectory Optimizat
 ## Installation Instructions
 These installation instructions assume that you're starting from a blank slate system and are looking to run [```MCMP Example.ipynb```](http://nbviewer.ipython.org/github/schmrlng/MCMP-ISRR15/blob/master/MCMP%20Example.ipynb) locally on your computer. If, for example, you have a python installation that you'd prefer to use instead of Anaconda, or otherwise have some pieces of the tech stack already installed, you may have to do some error-message chasing to add missing dependencies.
 - Install [Anaconda](https://store.continuum.io/cshop/anaconda/)
-- Install [Julia](http://julialang.org/downloads/)
+- Install [Julia](http://julialang.org/downloads/) v0.4
 - Open a Julia terminal window and run the following commands
 
     ```julia
@@ -15,6 +15,7 @@ These installation instructions assume that you're starting from a blank slate s
     Pkg.build("IJulia")
     ```
 
+- In your terminal, navigate to the result of ```Pkg.dir("MotionPlanning")``` and run ```git checkout -b master v0.1``` to load the version of MotionPlanning.jl associated with this code.
 - Clone this repository
 - Launch IJulia, a browser-based notebook interface for Julia, by either typing
 
